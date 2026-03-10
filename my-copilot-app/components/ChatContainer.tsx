@@ -1,16 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAgentRun } from '../lib/hooks/useAgentRun';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { AlertCircle, Trash2, Bot, Users } from 'lucide-react';
+import { AlertCircle, Trash2, Bot, Users, Menu } from 'lucide-react';
+import { useConfigContext } from '../lib/context/ConfigContext';
 
-const ENTITY_TYPE = process.env.NEXT_PUBLIC_ENTITY_TYPE || 'agent';
+interface ChatContainerProps {
+  onToggleSidebar: () => void;
+}
 
-export function ChatContainer() {
-  const { messages, currentRun, isStreaming, error, sendMessage, clearMessages } = useAgentRun();
+export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
+  const { serverUrl, selectedEntity, toggleSidebar, setOnEntityChange } = useConfigContext();
+  const { messages, currentRun, isStreaming, error, sendMessage, clearMessages } = useAgentRun({
+    serverUrl,
+    selectedEntity,
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Clear chat when entity changes
+  const handleEntityChange = useCallback(() => {
+    clearMessages();
+  }, [clearMessages]);
+
+  // Register the entity change callback
+  useEffect(() => {
+    setOnEntityChange(handleEntityChange);
+  }, [setOnEntityChange, handleEntityChange]);
 
   const streamingMessage = useMemo(() => {
     if (currentRun && currentRun.status === 'streaming') {
@@ -29,18 +46,28 @@ export function ChatContainer() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentRun?.content, currentRun?.reasoning_content, currentRun?.member_runs]);
 
-  const isTeam = ENTITY_TYPE === 'team';
-  const entityLabel = isTeam ? 'Agno Team Chat' : 'Agno Agent Chat';
+  const isTeam = selectedEntity?.type === 'team';
+  const entityName = selectedEntity?.name || 'Select an Agent or Team';
+  const entityLabel = selectedEntity ? entityName : 'Agno Chat';
 
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2">
-          {isTeam ? (
-            <Users className="w-5 h-5 text-purple-600" />
-          ) : (
-            <Bot className="w-5 h-5 text-purple-600" />
-          )}
+          <button
+            onClick={onToggleSidebar}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            title="Toggle sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          {selectedEntity ? (
+            isTeam ? (
+              <Users className="w-5 h-5 text-purple-600" />
+            ) : (
+              <Bot className="w-5 h-5 text-purple-600" />
+            )
+          ) : null}
           <h1 className="text-lg font-semibold text-gray-900">{entityLabel}</h1>
         </div>
         <button
@@ -54,9 +81,14 @@ export function ChatContainer() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 && !currentRun && (
+        {!selectedEntity && messages.length === 0 && !currentRun && (
           <div className="flex items-center justify-center h-full text-gray-400">
-            <p>Start a conversation with the {isTeam ? 'team' : 'agent'}</p>
+            <p>Select an agent or team from the sidebar to start chatting</p>
+          </div>
+        )}
+        {selectedEntity && messages.length === 0 && !currentRun && (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <p>Start a conversation with {selectedEntity.name}</p>
           </div>
         )}
 
@@ -80,7 +112,7 @@ export function ChatContainer() {
         </div>
       )}
 
-      <ChatInput onSend={sendMessage} disabled={isStreaming} />
+      <ChatInput onSend={sendMessage} disabled={isStreaming || !selectedEntity} />
     </div>
   );
 }

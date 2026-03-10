@@ -5,8 +5,9 @@ This document records all Server-Sent Events (SSE) returned by the Agno agent an
 ## Quick Start
 
 ```bash
+uv add agno fastapi uvicorn openai ag-ui-protocol
 cd my-copilot-app
-npm install
+npm install @copilotkit/react-ui @copilotkit/react-core @copilotkit/runtime @ag-ui/agno
 npm run dev
 ```
 
@@ -14,29 +15,30 @@ The app will be available at `http://localhost:3000`.
 
 ## Configuration
 
-The app connects to the Agno agent/team server using these environment variables:
+The app uses a **dynamic UI-based configuration system**. No environment variables are required.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEXT_PUBLIC_AGENT_URL` | `http://localhost:9001` | URL of the Agno agent server |
-| `NEXT_PUBLIC_AGENT_ID` | `helperful-assistant` | ID of the agent/team to use |
-| `NEXT_PUBLIC_ENTITY_TYPE` | `agent` | Entity type: `agent` or `team` |
+### Getting Started
 
-Create a `.env.local` file in `my-copilot-app/` to override defaults:
+1. Start the app with `npm run dev`
+2. Enter your Agno server URL in the sidebar (default: `http://localhost:9001`)
+3. Click **Connect** to discover available agents and teams
+4. Select an agent or team from the list to start chatting
 
-### For Agents:
-```
-NEXT_PUBLIC_AGENT_URL=http://localhost:9001
-NEXT_PUBLIC_AGENT_ID=helpful-assistant
-NEXT_PUBLIC_ENTITY_TYPE=agent
-```
+### Features
 
-### For Teams:
-```
-NEXT_PUBLIC_AGENT_URL=http://localhost:9001
-NEXT_PUBLIC_AGENT_ID=helpful-assistant
-NEXT_PUBLIC_ENTITY_TYPE=team
-```
+- **Server Discovery**: Automatically fetches available agents and teams from `/agents` and `/teams` endpoints
+- **Dynamic Selection**: Switch between agents and teams without restarting
+- **Persistence**: Server URL and selected entity are saved to localStorage
+- **Collapsible Sidebar**: Toggle sidebar visibility for more chat space
+
+### Connection Management
+
+| Status | Description |
+|--------|-------------|
+| Disconnected | Not connected to any server |
+| Connecting | Attempting to fetch agents/teams |
+| Connected | Successfully connected, entities available |
+| Error | Connection failed (check server URL) |
 
 **Note:** The app makes direct HTTP requests to the agent/team server using `application/x-www-form-urlencoded` format.
 
@@ -647,7 +649,7 @@ Track the following state during streaming:
 ```
 my-copilot-app/
 ├── app/
-│   ├── page.tsx              # Main chat page
+│   ├── page.tsx              # Main chat page with ConfigProvider
 │   ├── layout.tsx            # Root layout
 │   └── globals.css           # Global styles with animations
 ├── components/
@@ -657,16 +659,23 @@ my-copilot-app/
 │   ├── MessageStream.tsx     # Streaming message display container
 │   ├── ReasoningBlock.tsx    # Collapsible thinking section
 │   ├── ToolCallBlock.tsx     # Tool execution card with status
-│   └── ContentBlock.tsx      # Markdown content with syntax highlighting
+│   ├── ContentBlock.tsx      # Markdown content with syntax highlighting
+│   ├── Sidebar.tsx           # Collapsible sidebar with server config
+│   ├── ServerConfig.tsx      # Server URL input and connection controls
+│   └── EntityList.tsx        # List of available agents and teams
 ├── lib/
 │   ├── types/
 │   │   ├── events.ts         # TypeScript interfaces for all 8 SSE events
 │   │   ├── message.ts        # Message and state types
+│   │   ├── config.ts         # Configuration types (AgentInfo, TeamInfo, etc.)
 │   │   └── index.ts          # Type exports
 │   ├── utils/
 │   │   └── sse-parser.ts     # SSE parsing utility (SSEParser class)
+│   ├── context/
+│   │   └── ConfigContext.tsx # React context for global config state
 │   └── hooks/
-│       └── useAgentRun.ts    # Agent communication hook
+│       ├── useAgentRun.ts    # Agent/team communication hook
+│       └── useConfig.ts      # Server connection and entity selection hook
 └── package.json              # Dependencies installed
 ```
 
@@ -741,6 +750,23 @@ my-copilot-app/
 - Styled tables with borders
 - Inline code with pink highlight
 
+#### Sidebar
+- Collapsible sidebar with smooth animation
+- Contains ServerConfig and EntityList components
+- Toggle button in ChatContainer header
+
+#### ServerConfig
+- Server URL input field
+- Connect/Disconnect buttons
+- Connection status indicator with color-coded icons
+- Error display for failed connections
+
+#### EntityList
+- Displays available agents and teams after connection
+- Refresh button to reload entities from server
+- Shows agent role and team mode/member info
+- Click to select entity for chat
+
 ---
 
 ### useAgentRun Hook
@@ -755,7 +781,10 @@ const {
   error,         // string | null - error message if any
   sendMessage,   // (content: string) => Promise<void>
   clearMessages, // () => void
-} = useAgentRun();
+} = useAgentRun({
+  serverUrl,      // string - URL of the Agno server
+  selectedEntity, // SelectedEntity | null - selected agent or team
+});
 ```
 
 **Features:**
@@ -768,11 +797,55 @@ const {
 - **Team Support:** Tracks member agent runs when teams delegate tasks
 - **Nested Runs:** Handles `parent_run_id` for member agent events within team runs
 
-**Configuration:** Agent URL, ID, and entity type are configured via environment variables:
+**Configuration:** Server URL and selected entity are passed as options, typically from `useConfigContext()`.
+
+### useConfig Hook
+
+Hook for managing server connection and entity selection:
+
 ```typescript
-const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:9001';
-const AGENT_ID = process.env.NEXT_PUBLIC_AGENT_ID || 'helpful-assistant';
-const ENTITY_TYPE = process.env.NEXT_PUBLIC_ENTITY_TYPE || 'agent';
+const {
+  // State
+  serverUrl,        // string - current server URL
+  setServerUrl,     // (url: string) => void
+  sidebarOpen,      // boolean - sidebar visibility
+  toggleSidebar,    // () => void
+  connectionStatus, // ConnectionStatus - 'disconnected' | 'connecting' | 'connected' | 'error'
+  agents,           // AgentInfo[] - available agents
+  teams,            // TeamInfo[] - available teams
+  selectedEntity,   // SelectedEntity | null - selected agent or team
+
+  // Actions
+  connect,          // () => Promise<void> - connect to server
+  disconnect,       // () => void - disconnect from server
+  refresh,          // () => Promise<void> - refresh agents/teams
+  refreshing,       // boolean - refresh in progress
+  selectEntity,     // (type, id, name) => void - select agent or team
+  error,            // string | null - connection error
+
+  // Callbacks
+  setOnEntityChange, // (callback) => void - register entity change callback
+} = useConfig();
+```
+
+**Features:**
+- Fetches agents and teams from `/agents` and `/teams` endpoints
+- Persists server URL, sidebar state, and selected entity to localStorage
+- Provides connection status tracking
+- Entity change callback for clearing chat on selection change
+
+### ConfigContext
+
+React context provider for global configuration state:
+
+```typescript
+// Wrap your app
+<ConfigProvider>
+  <App />
+</ConfigProvider>
+
+// Use in components
+const config = useConfigContext();
 ```
 
 ### StreamMessage Type
@@ -811,6 +884,42 @@ interface MemberRun {
   status: 'streaming' | 'completed' | 'error';
   parent_run_id: string;  // Links back to team run
 }
+```
+
+### Config Types
+
+```typescript
+interface AgentInfo {
+  id: string;
+  name: string;
+  role?: string;
+  model?: {
+    name: string;
+    model: string;
+    provider: string;
+  };
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role?: string;
+}
+
+interface TeamInfo {
+  id: string;
+  name: string;
+  mode?: string;
+  members?: TeamMember[];
+}
+
+interface SelectedEntity {
+  type: 'agent' | 'team';
+  id: string;
+  name: string;
+}
+
+type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 ```
 
 ---

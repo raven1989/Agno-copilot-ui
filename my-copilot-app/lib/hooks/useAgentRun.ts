@@ -17,12 +17,9 @@ import {
   TeamRunCompletedEvent,
   EntityType,
   isTeamEvent,
+  SelectedEntity,
 } from '../types';
 import { SSEParser } from '../utils/sse-parser';
-
-const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:9001';
-const AGENT_ID = process.env.NEXT_PUBLIC_AGENT_ID || 'helpful-assistant';
-const ENTITY_TYPE: EntityType = (process.env.NEXT_PUBLIC_ENTITY_TYPE as EntityType) || 'team';
 
 interface UseAgentRunReturn {
   messages: Message[];
@@ -33,11 +30,17 @@ interface UseAgentRunReturn {
   clearMessages: () => void;
 }
 
+interface UseAgentRunOptions {
+  serverUrl: string;
+  selectedEntity: SelectedEntity | null;
+}
+
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function useAgentRun(): UseAgentRunReturn {
+export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
+  const { serverUrl, selectedEntity } = options;
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentRun, setCurrentRun] = useState<StreamMessage | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -369,6 +372,12 @@ export function useAgentRun(): UseAgentRunReturn {
     async (content: string) => {
       if (isStreaming) return;
 
+      // Check if we have a selected entity
+      if (!selectedEntity) {
+        setError('Please select an agent or team from the sidebar');
+        return;
+      }
+
       setError(null);
       const userMessage: Message = {
         id: generateId(),
@@ -390,8 +399,8 @@ export function useAgentRun(): UseAgentRunReturn {
           formData.append('session_id', sessionIdRef.current);
         }
 
-        const endpoint = ENTITY_TYPE === 'team' ? 'teams' : 'agents';
-        const response = await fetch(`${AGENT_URL}/${endpoint}/${AGENT_ID}/runs`, {
+        const endpoint = selectedEntity.type === 'team' ? 'teams' : 'agents';
+        const response = await fetch(`${serverUrl}/${endpoint}/${selectedEntity.id}/runs`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -427,7 +436,7 @@ export function useAgentRun(): UseAgentRunReturn {
         setIsStreaming(false);
       }
     },
-    [isStreaming, handleAgentEvent]
+    [isStreaming, handleAgentEvent, serverUrl, selectedEntity]
   );
 
   const clearMessages = useCallback(() => {
