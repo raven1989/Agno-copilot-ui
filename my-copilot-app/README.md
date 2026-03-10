@@ -1,8 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## How Is This App Created:
+```bash
+npx create-next-app@latest my-copilot-app
+cd my-copilot-app
+```
+
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+```
+npm install @copilotkit/react-ui @copilotkit/react-core @copilotkit/runtime @ag-ui/agno
+```
+
+Second, run the development server:
 
 ```bash
 npm run dev
