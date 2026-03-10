@@ -1,4 +1,4 @@
-import { Tool } from './events';
+import { Tool, EntityType } from './events';
 
 export type MessageRole = 'user' | 'assistant';
 
@@ -7,14 +7,27 @@ export interface ToolCallState {
   status: 'running' | 'completed' | 'error';
 }
 
-export interface StreamMessage {
+export interface MemberRun {
   run_id: string;
-  session_id: string;
   agent_id: string;
   agent_name: string;
   reasoning_content: string;
   content: string;
   tool_calls: ToolCallState[];
+  status: 'streaming' | 'completed' | 'error';
+  parent_run_id: string;
+}
+
+export interface StreamMessage {
+  run_id: string;
+  session_id: string;
+  entity_type: EntityType;
+  entity_id: string;
+  entity_name: string;
+  reasoning_content: string;
+  content: string;
+  tool_calls: ToolCallState[];
+  member_runs: MemberRun[];
   status: 'streaming' | 'completed' | 'error';
   metrics?: {
     time_to_first_token?: number;

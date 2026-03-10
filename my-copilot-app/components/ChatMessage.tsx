@@ -25,7 +25,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-gray-500 mb-1">
-          {isUser ? 'You' : message.streamMessage?.agent_name || 'Assistant'}
+          {isUser ? 'You' : message.streamMessage?.entity_name || 'Assistant'}
         </div>
         <div className="text-gray-900">
           {isUser ? (

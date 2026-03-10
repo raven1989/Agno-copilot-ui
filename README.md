@@ -1,6 +1,6 @@
-# Agno Agent API Event Types Reference
+# Agno Agent & Team API Event Types Reference
 
-This document records all Server-Sent Events (SSE) returned by the Agno agent API for UI implementation reference.
+This document records all Server-Sent Events (SSE) returned by the Agno agent and team APIs for UI implementation reference.
 
 ## Quick Start
 
@@ -14,21 +14,31 @@ The app will be available at `http://localhost:3000`.
 
 ## Configuration
 
-The app connects to the Agno agent server using these environment variables:
+The app connects to the Agno agent/team server using these environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NEXT_PUBLIC_AGENT_URL` | `http://localhost:9001` | URL of the Agno agent server |
-| `NEXT_PUBLIC_AGENT_ID` | `helperful-assistant` | ID of the agent to use |
+| `NEXT_PUBLIC_AGENT_ID` | `helperful-assistant` | ID of the agent/team to use |
+| `NEXT_PUBLIC_ENTITY_TYPE` | `agent` | Entity type: `agent` or `team` |
 
 Create a `.env.local` file in `my-copilot-app/` to override defaults:
 
+### For Agents:
 ```
 NEXT_PUBLIC_AGENT_URL=http://localhost:9001
-NEXT_PUBLIC_AGENT_ID=helperful-assistant
+NEXT_PUBLIC_AGENT_ID=helpful-assistant
+NEXT_PUBLIC_ENTITY_TYPE=agent
 ```
 
-**Note:** The app makes direct HTTP requests to the agent server using `application/x-www-form-urlencoded` format.
+### For Teams:
+```
+NEXT_PUBLIC_AGENT_URL=http://localhost:9001
+NEXT_PUBLIC_AGENT_ID=helpful-assistant
+NEXT_PUBLIC_ENTITY_TYPE=team
+```
+
+**Note:** The app makes direct HTTP requests to the agent/team server using `application/x-www-form-urlencoded` format.
 
 ## Implementation Status
 
@@ -38,13 +48,25 @@ NEXT_PUBLIC_AGENT_ID=helperful-assistant
 | Phase 2 | UI Components | Completed |
 | Phase 3 | Chat Interface | Completed |
 | Phase 4 | Polish & UX | Completed |
+| Phase 5 | Team Support | Completed |
 
 ---
 
-## API Endpoint
+## API Endpoints
 
+### Agent Endpoint
 ```
 POST http://localhost:9001/agents/{agent_id}/runs
+Content-Type: application/x-www-form-urlencoded
+
+Parameters:
+- message: string (user message)
+- stream: boolean (true for SSE, false for complete response)
+```
+
+### Team Endpoint
+```
+POST http://localhost:9001/teams/{team_id}/runs
 Content-Type: application/x-www-form-urlencoded
 
 Parameters:
@@ -56,6 +78,8 @@ Parameters:
 
 ## Event Types Overview
 
+### Agent Events
+
 | Event | Description | Occurrence |
 |-------|-------------|------------|
 | `RunStarted` | Run initialization | Once at start |
@@ -66,6 +90,130 @@ Parameters:
 | `ToolCallCompleted` | Tool execution finishes | After tool returns result |
 | `RunContentCompleted` | Content streaming done | Once before RunCompleted |
 | `RunCompleted` | Run finishes | Once at end |
+
+### Team Events
+
+| Event | Description | Occurrence |
+|-------|-------------|------------|
+| `TeamRunStarted` | Team run initialization | Once at start |
+| `TeamModelRequestStarted` | Model begins processing | Before each model call |
+| `TeamRunContent` | Streaming content chunks | Multiple times during response |
+| `TeamModelRequestCompleted` | Model finishes processing | After each model call |
+| `TeamToolCallStarted` | Tool execution begins | When team calls a tool |
+| `TeamToolCallCompleted` | Tool execution finishes | After tool returns result |
+| `TeamRunContentCompleted` | Content streaming done | Once before TeamRunCompleted |
+| `TeamRunCompleted` | Team run finishes | Once at end |
+
+### Nested Member Agent Events
+
+When a team delegates to a member agent (via `delegate_task_to_member` tool), the member agent's events include a `parent_run_id` field linking back to the team run. These events use standard agent event names but are processed as nested runs within the team context.
+
+---
+
+## Team Event Schemas
+
+Team events follow the same structure as agent events, but with `team_id` and `team_name` instead of `agent_id` and `agent_name`.
+
+### TeamRunStarted
+
+```json
+{
+  "created_at": 1773126400,
+  "event": "TeamRunStarted",
+  "team_id": "helpful-assistant",
+  "team_name": "Helpful Assistant",
+  "run_id": "84efe41b-165c-4c7a-b336-f12ab9861d3f",
+  "session_id": "f772406d-dc4d-48c9-831a-8c5c8bd163d9",
+  "model": "endor/endor-glm-5",
+  "model_provider": "DeepSeek"
+}
+```
+
+### TeamRunContent
+
+```json
+{
+  "created_at": 1773126414,
+  "event": "TeamRunContent",
+  "team_id": "helpful-assistant",
+  "team_name": "Helpful Assistant",
+  "run_id": "84efe41b-165c-4c7a-b336-f12ab9861d3f",
+  "session_id": "f772406d-dc4d-48c9-831a-8c5c8bd163d9",
+  "content": "I",
+  "content_type": "str",
+  "reasoning_content": "",
+  "model_provider_data": {
+    "id": "e52ef6aa7d9e44829f38c36795193566"
+  }
+}
+```
+
+### TeamToolCallStarted (delegate_task_to_member)
+
+When a team delegates to a member agent:
+
+```json
+{
+  "created_at": 1773126415,
+  "event": "TeamToolCallStarted",
+  "team_id": "helpful-assistant",
+  "team_name": "Helpful Assistant",
+  "run_id": "84efe41b-165c-4c7a-b336-f12ab9861d3f",
+  "session_id": "f772406d-dc4d-48c9-831a-8c5c8bd163d9",
+  "tool": {
+    "tool_call_id": "call_750af3d8fa6d4d9bbb40ab45",
+    "tool_name": "delegate_task_to_member",
+    "tool_args": {
+      "member_id": "external-knowledge-assistant",
+      "task": "Search for information about UB7..."
+    },
+    "tool_call_error": null,
+    "result": null
+  }
+}
+```
+
+### Nested Member Agent RunStarted
+
+After delegation, member agent events include `parent_run_id`:
+
+```json
+{
+  "created_at": 1773126415,
+  "event": "RunStarted",
+  "agent_id": "external-knowledge-assistant",
+  "agent_name": "External Knowledge Assistant",
+  "run_id": "a21e7fe8-569f-4f27-9ba9-608c023fc1d9",
+  "parent_run_id": "84efe41b-165c-4c7a-b336-f12ab9861d3f",
+  "session_id": "f772406d-dc4d-48c9-831a-8c5c8bd163d9",
+  "model": "endor/endor-glm-5",
+  "model_provider": "DeepSeek"
+}
+```
+
+### TeamRunCompleted
+
+```json
+{
+  "created_at": 1773126577,
+  "event": "TeamRunCompleted",
+  "team_id": "helpful-assistant",
+  "team_name": "Helpful Assistant",
+  "run_id": "84efe41b-165c-4c7a-b336-f12ab9861d3f",
+  "session_id": "f772406d-dc4d-48c9-831a-8c5c8bd163d9",
+  "content": "Full team response...",
+  "content_type": "str",
+  "reasoning_content": "Team reasoning...",
+  "session_state": {},
+  "metrics": {
+    "time_to_first_token": 2.88,
+    "duration": 177.5,
+    "details": {
+      "model": [{"id": "endor/endor-glm-5", "provider": "DeepSeek"}]
+    }
+  }
+}
+```
 
 ---
 
@@ -403,6 +551,8 @@ Note: Each event is followed by a blank line.
 
 ## Event Flow Example
 
+### Agent Event Flow
+
 ```
 1. RunStarted
 2. ModelRequestStarted
@@ -416,6 +566,30 @@ Note: Each event is followed by a blank line.
 10. ModelRequestCompleted
 11. RunContentCompleted
 12. RunCompleted
+```
+
+### Team Event Flow (with Member Delegation)
+
+```
+1. TeamRunStarted
+2. TeamModelRequestStarted
+3. TeamRunContent (reasoning_content) x N times
+4. TeamRunContent (content) x N times
+5. TeamModelRequestCompleted
+6. TeamToolCallStarted (delegate_task_to_member)
+   ├── RunStarted (member agent, with parent_run_id)
+   ├── ModelRequestStarted (member agent)
+   ├── RunContent (member agent) x N times
+   ├── ToolCallStarted (member agent tool)
+   ├── ToolCallCompleted (member agent tool)
+   ├── ModelRequestCompleted (member agent)
+   └── RunCompleted (member agent)
+7. TeamToolCallCompleted
+8. TeamModelRequestStarted (continue after delegation)
+9. TeamRunContent (content) x N times
+10. TeamModelRequestCompleted
+11. TeamRunContentCompleted
+12. TeamRunCompleted
 ```
 
 ---
@@ -439,21 +613,30 @@ Note: Each event is followed by a blank line.
    - Display: tool name, args, status, result
    - Indicate running vs completed state
 
+4. **Member Agent Runs** (Teams only)
+   - Display nested within team response
+   - Show agent name with distinct styling
+   - Include member's reasoning, content, and tool calls
+   - Indicate streaming vs completed state
+
 ### State Management
 
 Track the following state during streaming:
 - Current run_id and session_id
+- Entity type (agent or team)
 - Accumulated reasoning_content
 - Accumulated content
 - List of tool calls with their states
 - Run status (running/completed/error)
+- **For teams:** Map of member agent runs keyed by run_id
 
 ### Streaming Strategy
 
 1. Accumulate `content` and `reasoning_content` separately
-2. Update UI on each `RunContent` event
+2. Update UI on each `RunContent` / `TeamRunContent` event
 3. Handle tool calls as they occur
-4. Use `RunCompleted` for final state/metrics
+4. Use `RunCompleted` / `TeamRunCompleted` for final state/metrics
+5. **For teams:** Track member agent runs via `parent_run_id` linkage
 
 ---
 
@@ -526,10 +709,18 @@ my-copilot-app/
 
 #### MessageStream
 - Orchestrates display order:
-  1. Reasoning content (if any)
-  2. Tool calls (if any)
-  3. Main content
+  1. Member agent runs (for teams)
+  2. Reasoning content (if any)
+  3. Tool calls (if any)
+  4. Main content
 - Shows typing indicator during initial load
+- **Team indicator:** Shows "Team Response" label with Users icon
+
+#### MemberRunBlock (for Teams)
+- Displays nested member agent responses
+- Shows agent name with Bot icon
+- Teal color scheme to distinguish from team content
+- Includes member's reasoning, tool calls, and content
 
 #### ReasoningBlock
 - Collapsible "Thinking" section
@@ -554,7 +745,7 @@ my-copilot-app/
 
 ### useAgentRun Hook
 
-The core hook for agent communication:
+The core hook for agent/team communication:
 
 ```typescript
 const {
@@ -568,17 +759,58 @@ const {
 ```
 
 **Features:**
-- Direct HTTP POST to agent API using `application/x-www-form-urlencoded`
+- Direct HTTP POST to agent/team API using `application/x-www-form-urlencoded`
 - Uses custom `SSEParser` to parse Agno SSE events
 - Accumulates `content` and `reasoning_content` separately
 - Tracks tool call states (running/completed/error)
 - Maintains session ID for conversation continuity
 - Error handling with user feedback
+- **Team Support:** Tracks member agent runs when teams delegate tasks
+- **Nested Runs:** Handles `parent_run_id` for member agent events within team runs
 
-**Configuration:** Agent URL and ID are configured via environment variables at the top of the hook:
+**Configuration:** Agent URL, ID, and entity type are configured via environment variables:
 ```typescript
 const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:9001';
-const AGENT_ID = process.env.NEXT_PUBLIC_AGENT_ID || 'helperful-assistant';
+const AGENT_ID = process.env.NEXT_PUBLIC_AGENT_ID || 'helpful-assistant';
+const ENTITY_TYPE = process.env.NEXT_PUBLIC_ENTITY_TYPE || 'agent';
+```
+
+### StreamMessage Type
+
+```typescript
+interface StreamMessage {
+  run_id: string;
+  session_id: string;
+  entity_type: 'agent' | 'team';
+  entity_id: string;
+  entity_name: string;
+  reasoning_content: string;
+  content: string;
+  tool_calls: ToolCallState[];
+  member_runs: MemberRun[];  // For teams: nested agent runs
+  status: 'streaming' | 'completed' | 'error';
+  metrics?: {
+    time_to_first_token?: number;
+    duration?: number;
+    model?: string;
+    provider?: string;
+  };
+}
+```
+
+### MemberRun Type
+
+```typescript
+interface MemberRun {
+  run_id: string;
+  agent_id: string;
+  agent_name: string;
+  reasoning_content: string;
+  content: string;
+  tool_calls: ToolCallState[];
+  status: 'streaming' | 'completed' | 'error';
+  parent_run_id: string;  // Links back to team run
+}
 ```
 
 ---
