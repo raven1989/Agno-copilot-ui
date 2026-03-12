@@ -662,7 +662,14 @@ my-copilot-app/
 │   ├── ContentBlock.tsx      # Markdown content with syntax highlighting
 │   ├── Sidebar.tsx           # Collapsible sidebar with server config
 │   ├── ServerConfig.tsx      # Server URL input and connection controls
-│   └── EntityList.tsx        # List of available agents and teams
+│   ├── EntityList.tsx        # List of available agents and teams
+│   └── tool-call/            # Tool call content rendering components
+│       ├── index.ts          # Exports for tool-call components
+│       ├── JsonValue.tsx     # Collapsible JSON renderer with syntax highlighting
+│       ├── ContentDetector.tsx # Auto-detects content type and routes to renderer
+│       ├── CodeRenderer.tsx  # Syntax-highlighted code display
+│       ├── MarkdownRenderer.tsx # Markdown content renderer
+│       └── TextRenderer.tsx  # Plain text with truncation support
 ├── lib/
 │   ├── types/
 │   │   ├── events.ts         # TypeScript interfaces for all 8 SSE events
@@ -670,7 +677,8 @@ my-copilot-app/
 │   │   ├── config.ts         # Configuration types (AgentInfo, TeamInfo, etc.)
 │   │   └── index.ts          # Type exports
 │   ├── utils/
-│   │   └── sse-parser.ts     # SSE parsing utility (SSEParser class)
+│   │   ├── sse-parser.ts     # SSE parsing utility (SSEParser class)
+│   │   └── content-utils.ts  # Content detection and formatting utilities
 │   ├── context/
 │   │   └── ConfigContext.tsx # React context for global config state
 │   └── hooks/
@@ -741,8 +749,14 @@ my-copilot-app/
 - Expandable card for tool execution
 - Color-coded tool name badges
 - Status icons: spinner (running), checkmark (completed), X (error)
-- JSON formatting for arguments and results
+- Smart content rendering with auto-detection:
+  - JSON: Collapsible tree view with syntax highlighting
+  - Code: Syntax-highlighted with language detection
+  - Markdown: Formatted markdown rendering
+  - Text: Plain text with truncation support
+- Copy-to-clipboard for arguments and results
 - Color-coded borders based on status
+- Keyboard accessible with proper ARIA attributes
 
 #### ContentBlock
 - Markdown rendering with GitHub Flavored Markdown
@@ -766,6 +780,35 @@ my-copilot-app/
 - Refresh button to reload entities from server
 - Shows agent role and team mode/member info
 - Click to select entity for chat
+
+#### Tool Call Rendering Components
+
+The `tool-call/` directory contains specialized renderers for tool output:
+
+##### ContentDetector
+- Auto-detects content type from raw string
+- Routes to appropriate renderer based on analysis
+- Supports JSON, code, markdown, and plain text
+
+##### JsonValue / JsonRenderer
+- Collapsible tree view for JSON objects and arrays
+- Color-coded syntax highlighting
+- Configurable max expansion depth
+- Shows item/key counts for arrays and objects
+
+##### CodeRenderer
+- Syntax highlighting for detected programming languages
+- Auto-detects language from content patterns
+- Line truncation with "show more" support
+
+##### MarkdownRenderer
+- GitHub Flavored Markdown rendering
+- Code block syntax highlighting
+- Line truncation support
+
+##### TextRenderer
+- Plain text display with whitespace preservation
+- Line truncation with expandable view
 
 ---
 
@@ -924,11 +967,19 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 ---
 
-### Animations
+### Animations & Scroll Behavior
 
 Added to `globals.css`:
 
 ```css
+/* Prevent page-level scrolling - only inner containers should scroll */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -944,6 +995,11 @@ Added to `globals.css`:
   animation: fadeIn 0.3s ease-out;
 }
 ```
+
+**Scroll Behavior:**
+- Page-level scrolling is disabled to keep the input box fixed at the bottom
+- Only the messages container scrolls (`overscroll-contain` prevents scroll chaining)
+- Auto-scroll uses direct `scrollTop` manipulation to avoid scrolling ancestor elements
 
 ---
 

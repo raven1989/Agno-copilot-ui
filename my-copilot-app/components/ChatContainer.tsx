@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useAgentRun } from '../lib/hooks/useAgentRun';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -17,7 +17,13 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
     serverUrl,
     selectedEntity,
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Track if user is near bottom (within 100px) - used to decide if we should auto-scroll
+  const [userIsNearBottom, setUserIsNearBottom] = useState(true);
+
+  // Track previous content length to detect actual content changes
+  const prevContentLengthRef = useRef(0);
 
   // Clear chat when entity changes
   const handleEntityChange = useCallback(() => {
@@ -42,9 +48,65 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
     return null;
   }, [currentRun]);
 
+  // Calculate current content length for comparison
+  const currentContentLength = useMemo(() => {
+    let length = messages.length;
+    if (currentRun) {
+      length += (currentRun.content?.length || 0) + (currentRun.reasoning_content?.length || 0);
+      length += currentRun.tool_calls?.length || 0;
+      length += currentRun.member_runs?.length || 0;
+    }
+    return length;
+  }, [messages, currentRun]);
+
+  // Handle scroll position tracking
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setUserIsNearBottom(isNearBottom);
+  }, []);
+
+  // Scroll to bottom of the scroll container directly
+  const scrollToBottom = useCallback((smooth: boolean = true) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (smooth) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, []);
+
+  // Only auto-scroll when:
+  // 1. New content is actually added (content length changed)
+  // 2. User was already near the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, currentRun?.content, currentRun?.reasoning_content, currentRun?.member_runs]);
+    const contentChanged = currentContentLength !== prevContentLengthRef.current;
+    prevContentLengthRef.current = currentContentLength;
+
+    // Only scroll if content changed AND user is near bottom
+    if (contentChanged && userIsNearBottom) {
+      scrollToBottom(true);
+    }
+  }, [currentContentLength, userIsNearBottom, scrollToBottom]);
+
+  // Always scroll when a new message is sent (user action)
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'user') {
+        scrollToBottom(false);
+        setUserIsNearBottom(true);
+      }
+    }
+  }, [messages, scrollToBottom]);
 
   const isTeam = selectedEntity?.type === 'team';
   const entityName = selectedEntity?.name || 'Select an Agent or Team';
@@ -80,7 +142,11 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overscroll-contain"
+      >
         {!selectedEntity && messages.length === 0 && !currentRun && (
           <div className="flex items-center justify-center h-full text-gray-400">
             <p>Select an agent or team from the sidebar to start chatting</p>
@@ -101,8 +167,6 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
             <ChatMessage message={streamingMessage} />
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {error && (

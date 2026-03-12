@@ -12,12 +12,21 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Prevent page-level scrolling - only inner containers should scroll */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Fade in animation */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -31,4 +40,106 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Slide down animation for collapsible content */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 2000px;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 1;
+    max-height: 2000px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.2s ease-out forwards;
+  overflow: hidden;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.2s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Pulse animation for running state */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.5s ease-in-out infinite;
+}
+
+/* Copy success flash */
+@keyframes copyFlash {
+  0% {
+    background-color: rgba(34, 197, 94, 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-copyFlash {
+  animation: copyFlash 0.5s ease-out;
+}
+
+/* Focus ring for accessibility */
+.focus-ring {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+}
+
+.focus-ring:focus-visible {
+  @apply ring-2 ring-blue-500 ring-offset-2;
+}
+
+/* Smooth transitions for interactive elements */
+.transition-smooth {
+  transition: all 0.15s ease-in-out;
+}
+
+/* Mobile touch-friendly tap targets */
+@media (max-width: 640px) {
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Scrollbar styling for tool call content */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
