@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   SERVER_URL: 'agno-server-url',
   SIDEBAR_OPEN: 'agno-sidebar-open',
   SELECTED_ENTITY: 'agno-selected-entity',
+  CURRENT_SESSION_ID: 'agno-current-session-id',
 };
 
 const DEFAULT_SERVER_URL = 'http://localhost:9001';
@@ -20,6 +21,7 @@ interface UseConfigReturn {
   agents: AgentInfo[];
   teams: TeamInfo[];
   selectedEntity: SelectedEntity | null;
+  currentSessionId: string | null;
 
   // Actions
   connect: () => Promise<void>;
@@ -27,6 +29,7 @@ interface UseConfigReturn {
   refresh: () => Promise<void>;
   refreshing: boolean;
   selectEntity: (type: 'agent' | 'team', id: string, name: string) => void;
+  setCurrentSessionId: (id: string | null) => void;
   error: string | null;
 
   // Callbacks
@@ -39,6 +42,7 @@ export function useConfig(): UseConfigReturn {
   const [serverUrl, setServerUrlState] = useState<string>(DEFAULT_SERVER_URL);
   const [sidebarOpen, setSidebarOpenState] = useState<boolean>(true);
   const [selectedEntity, setSelectedEntityState] = useState<SelectedEntity | null>(null);
+  const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -68,6 +72,9 @@ export function useConfig(): UseConfigReturn {
         // ignore parse errors
       }
     }
+
+    // Clear session ID on page load - always start fresh
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
   }, []);
 
   const setServerUrl = useCallback((url: string) => {
@@ -93,6 +100,11 @@ export function useConfig(): UseConfigReturn {
     setAgents([]);
     setTeams([]);
     setError(null);
+    // Clear session ID on disconnect since we can't load it without connection
+    setCurrentSessionIdState(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
+    }
   }, []);
 
   const connect = useCallback(async () => {
@@ -173,6 +185,11 @@ export function useConfig(): UseConfigReturn {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEYS.SELECTED_ENTITY, JSON.stringify(newEntity));
     }
+    // Clear session ID when switching entities (treat as New Chat)
+    setCurrentSessionIdState(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
+    }
     // Trigger entity change callback
     if (onEntityChangeRef.current) {
       onEntityChangeRef.current();
@@ -189,6 +206,17 @@ export function useConfig(): UseConfigReturn {
     }
   }, []);
 
+  const setCurrentSessionId = useCallback((id: string | null) => {
+    setCurrentSessionIdState(id);
+    if (typeof window !== 'undefined') {
+      if (id) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION_ID, id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
+      }
+    }
+  }, []);
+
   return {
     serverUrl,
     setServerUrl,
@@ -199,11 +227,13 @@ export function useConfig(): UseConfigReturn {
     agents,
     teams,
     selectedEntity,
+    currentSessionId,
     connect,
     disconnect,
     refresh,
     refreshing,
     selectEntity,
+    setCurrentSessionId,
     error,
     onEntityChange,
     setOnEntityChange,

@@ -18,6 +18,7 @@ import {
   EntityType,
   isTeamEvent,
   SelectedEntity,
+  SessionRun,
 } from '../types';
 import { SSEParser } from '../utils/sse-parser';
 
@@ -26,7 +27,9 @@ interface UseAgentRunReturn {
   currentRun: StreamMessage | null;
   isStreaming: boolean;
   error: string | null;
+  sessionId: string | null;
   sendMessage: (content: string) => Promise<void>;
+  loadSession: (sessionId: string) => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -45,6 +48,7 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
   const [currentRun, setCurrentRun] = useState<StreamMessage | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const parserRef = useRef(new SSEParser());
   const sessionIdRef = useRef<string | null>(null);
   const currentRunRef = useRef<StreamMessage | null>(null);
@@ -138,6 +142,7 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
       case 'TeamRunStarted': {
         const runEvent = event as TeamRunStartedEvent;
         sessionIdRef.current = runEvent.session_id;
+        setSessionId(runEvent.session_id);
         const newRun: StreamMessage = {
           run_id: runEvent.run_id,
           session_id: runEvent.session_id,
@@ -256,6 +261,7 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
       case 'RunStarted': {
         const runEvent = event as RunStartedEvent;
         sessionIdRef.current = runEvent.session_id;
+        setSessionId(runEvent.session_id);
         const newRun: StreamMessage = {
           run_id: runEvent.run_id,
           session_id: runEvent.session_id,
@@ -443,16 +449,230 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
     setMessages([]);
     setCurrentRun(null);
     sessionIdRef.current = null;
+    setSessionId(null);
     setError(null);
     memberRunsRef.current.clear();
   }, []);
+
+  const loadSession = useCallback(async (sessionId: string) => {
+    if (!serverUrl) {
+      setError('Server URL not configured');
+      return;
+    }
+
+    setIsStreaming(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${serverUrl}/sessions/${sessionId}/runs`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load session: ${response.status}`);
+      }
+
+      const runs: SessionRun[] = await response.json();
+
+      // Separate top-level runs and member runs
+      const topLevelRuns = runs.filter(r => !r.parent_run_id);
+      const memberRuns = runs.filter(r => r.parent_run_id);
+
+      // Create a map of member runs by parent_run_id
+      const memberRunsByParent = new Map<string, SessionRun[]>();
+      memberRuns.forEach(run => {
+        const parentId = run.parent_run_id!;
+        if (!memberRunsByParent.has(parentId)) {
+          memberRunsByParent.set(parentId, []);
+        }
+        memberRunsByParent.get(parentId)!.push(run);
+      });
+
+      // Sort top-level runs chronologically
+      topLevelRuns.sort((a, b) => {
+        const aTime = a.messages?.[0]?.created_at || 0;
+        const bTime = b.messages?.[0]?.created_at || 0;
+        return aTime - bTime;
+      });
+
+      // Transform runs into messages
+      const loadedMessages: Message[] = [];
+
+      topLevelRuns.forEach((run) => {
+        // Determine entity type based on whether there are member runs
+        const hasMemberRuns = memberRunsByParent.has(run.run_id);
+        const entityType: EntityType = hasMemberRuns ? 'team' : 'agent';
+
+        // Find the assistant message with tool calls in the run's messages
+        const assistantMessage = run.messages?.find(
+          m => m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0
+        );
+
+        // Build tool_calls from the run's tools or from the assistant message
+        let toolCalls: ToolCallState[] = [];
+        if (run.tools && run.tools.length > 0) {
+          toolCalls = run.tools.map(tool => ({
+            tool: {
+              tool_call_id: tool.tool_call_id,
+              tool_name: tool.tool_name,
+              tool_args: tool.tool_args,
+              tool_call_error: tool.tool_call_error,
+              result: tool.result,
+              metrics: tool.metrics,
+              child_run_id: tool.child_run_id,
+              stop_after_tool_call: tool.stop_after_tool_call,
+              created_at: tool.created_at,
+              requires_confirmation: null,
+              confirmed: null,
+              confirmation_note: null,
+              requires_user_input: null,
+              user_input_schema: null,
+              user_feedback_schema: null,
+              answered: null,
+              external_execution_required: null,
+              external_execution_silent: null,
+              approval_type: null,
+              approval_id: null,
+            },
+            status: tool.tool_call_error ? 'error' : 'completed',
+          }));
+        } else if (assistantMessage?.tool_calls) {
+          // Fallback: build from assistant message's tool_calls
+          toolCalls = assistantMessage.tool_calls.map(tc => ({
+            tool: {
+              tool_call_id: tc.id,
+              tool_name: tc.function.name,
+              tool_args: JSON.parse(tc.function.arguments),
+              tool_call_error: false,
+              result: null,
+              metrics: null,
+              child_run_id: null,
+              stop_after_tool_call: false,
+              created_at: assistantMessage.created_at,
+              requires_confirmation: null,
+              confirmed: null,
+              confirmation_note: null,
+              requires_user_input: null,
+              user_input_schema: null,
+              user_feedback_schema: null,
+              answered: null,
+              external_execution_required: null,
+              external_execution_silent: null,
+              approval_type: null,
+              approval_id: null,
+            },
+            status: 'completed' as const,
+          }));
+        }
+
+        // Build member_runs for team sessions
+        const memberRunsForThisRun: MemberRun[] = [];
+        if (hasMemberRuns) {
+          const childRuns = memberRunsByParent.get(run.run_id) || [];
+          childRuns.forEach(childRun => {
+            // Extract tool calls for this member run
+            const memberToolCalls: ToolCallState[] = [];
+            if (childRun.tools && childRun.tools.length > 0) {
+              childRun.tools.forEach(tool => {
+                memberToolCalls.push({
+                  tool: {
+                    tool_call_id: tool.tool_call_id,
+                    tool_name: tool.tool_name,
+                    tool_args: tool.tool_args,
+                    tool_call_error: tool.tool_call_error,
+                    result: tool.result,
+                    metrics: tool.metrics,
+                    child_run_id: tool.child_run_id,
+                    stop_after_tool_call: tool.stop_after_tool_call,
+                    created_at: tool.created_at,
+                    requires_confirmation: null,
+                    confirmed: null,
+                    confirmation_note: null,
+                    requires_user_input: null,
+                    user_input_schema: null,
+                    user_feedback_schema: null,
+                    answered: null,
+                    external_execution_required: null,
+                    external_execution_silent: null,
+                    approval_type: null,
+                    approval_id: null,
+                  },
+                  status: tool.tool_call_error ? 'error' : 'completed',
+                });
+              });
+            }
+
+            memberRunsForThisRun.push({
+              run_id: childRun.run_id,
+              agent_id: childRun.agent_id,
+              agent_name: childRun.agent_id,
+              reasoning_content: childRun.reasoning_content || '',
+              content: childRun.content || '',
+              tool_calls: memberToolCalls,
+              status: 'completed',
+              parent_run_id: run.run_id,
+            });
+          });
+        }
+
+        // User message from run_input
+        if (run.run_input) {
+          const msgTime = run.messages?.[0]?.created_at || Date.now() / 1000;
+          loadedMessages.push({
+            id: generateId(),
+            role: 'user',
+            content: run.run_input,
+            timestamp: msgTime * 1000,
+          });
+        }
+
+        // Assistant message from content
+        if (run.content || run.reasoning_content) {
+          const msgTime = run.messages?.[run.messages.length - 1]?.created_at || Date.now() / 1000;
+          loadedMessages.push({
+            id: generateId(),
+            role: 'assistant',
+            content: run.content || '',
+            timestamp: msgTime * 1000,
+            streamMessage: {
+              run_id: run.run_id,
+              session_id: sessionId,
+              entity_type: entityType,
+              entity_id: run.agent_id,
+              entity_name: run.agent_id,
+              reasoning_content: run.reasoning_content || '',
+              content: run.content || '',
+              tool_calls: toolCalls,
+              member_runs: memberRunsForThisRun,
+              status: 'completed',
+              metrics: {
+                time_to_first_token: run.metrics?.time_to_first_token,
+                duration: run.metrics?.duration,
+                model: run.metrics?.details?.model?.[0]?.id,
+                provider: run.metrics?.details?.model?.[0]?.provider,
+              },
+            },
+          });
+        }
+      });
+
+      setMessages(loadedMessages);
+      sessionIdRef.current = sessionId;
+      setSessionId(sessionId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load session';
+      setError(errorMessage);
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [serverUrl]);
 
   return {
     messages,
     currentRun,
     isStreaming,
     error,
+    sessionId,
     sendMessage,
+    loadSession,
     clearMessages,
   };
 }

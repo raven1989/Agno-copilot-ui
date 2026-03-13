@@ -2,7 +2,8 @@
 
 import { ServerConfig } from './ServerConfig';
 import { EntityList } from './EntityList';
-import { AgentInfo, TeamInfo, SelectedEntity, ConnectionStatus } from '@/lib/types';
+import { SessionList } from './SessionList';
+import { AgentInfo, TeamInfo, SelectedEntity, ConnectionStatus, Session } from '@/lib/types';
 
 interface SidebarProps {
   serverUrl: string;
@@ -18,6 +19,22 @@ interface SidebarProps {
   selectedEntity: SelectedEntity | null;
   selectEntity: (type: 'agent' | 'team', id: string, name: string) => void;
   isOpen: boolean;
+  // Session management props
+  sessions: Session[];
+  sessionPage: number;
+  sessionTotalPages: number;
+  sessionTotalCount: number;
+  sessionIsLoading: boolean;
+  sessionError: string | null;
+  selectedSessionIds: Set<string>;
+  currentSessionId: string | null;
+  onLoadSession: (sessionId: string) => void;
+  onFetchSessions: (page: number) => void;
+  onDeleteSelectedSessions: () => Promise<boolean>;
+  onToggleSessionSelection: (sessionId: string) => void;
+  onSelectAllSessions: () => void;
+  onClearSelection: () => void;
+  onRefreshSessions: () => void;
 }
 
 export function Sidebar({
@@ -34,6 +51,22 @@ export function Sidebar({
   selectedEntity,
   selectEntity,
   isOpen,
+  // Session management props
+  sessions,
+  sessionPage,
+  sessionTotalPages,
+  sessionTotalCount,
+  sessionIsLoading,
+  sessionError,
+  selectedSessionIds,
+  currentSessionId,
+  onLoadSession,
+  onFetchSessions,
+  onDeleteSelectedSessions,
+  onToggleSessionSelection,
+  onSelectAllSessions,
+  onClearSelection,
+  onRefreshSessions,
 }: SidebarProps) {
   return (
     <div
@@ -63,6 +96,26 @@ export function Sidebar({
           connectionStatus={connectionStatus}
           refresh={refresh}
           refreshing={refreshing}
+        />
+
+        <SessionList
+          sessions={sessions}
+          page={sessionPage}
+          totalPages={sessionTotalPages}
+          totalCount={sessionTotalCount}
+          isLoading={sessionIsLoading}
+          error={sessionError}
+          selectedSessionIds={selectedSessionIds}
+          currentSessionId={currentSessionId}
+          connectionStatus={connectionStatus}
+          selectedEntity={selectedEntity}
+          onLoadSession={onLoadSession}
+          onFetchSessions={onFetchSessions}
+          onDeleteSelectedSessions={onDeleteSelectedSessions}
+          onToggleSessionSelection={onToggleSessionSelection}
+          onSelectAllSessions={onSelectAllSessions}
+          onClearSelection={onClearSelection}
+          onRefreshSessions={onRefreshSessions}
         />
       </div>
     </div>

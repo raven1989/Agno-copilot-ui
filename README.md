@@ -30,6 +30,7 @@ The app uses a **dynamic UI-based configuration system**. No environment variabl
 - **Dynamic Selection**: Switch between agents and teams without restarting
 - **Persistence**: Server URL and selected entity are saved to localStorage
 - **Collapsible Sidebar**: Toggle sidebar visibility for more chat space
+- **Session Management**: View, resume, and delete conversation sessions with multi-select support
 
 ### Connection Management
 
@@ -42,6 +43,83 @@ The app uses a **dynamic UI-based configuration system**. No environment variabl
 
 **Note:** The app makes direct HTTP requests to the agent/team server using `application/x-www-form-urlencoded` format.
 
+## Session Management
+
+The app provides full session management capabilities, allowing users to view, resume, and delete conversation sessions.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Session List** | View recent sessions in the sidebar with pagination support |
+| **Resume Session** | Click a session to load the full conversation history |
+| **Multi-select** | Select multiple sessions using checkboxes |
+| **Batch Delete** | Delete selected sessions with confirmation dialog |
+| **Session Filtering** | Sessions filter by selected entity type (agent/team) |
+| **Active Indicator** | Shows "Active" tag on currently loaded session |
+
+### Session List UI
+
+Sessions appear in the sidebar below the Entity List:
+
+```
+┌─────────────────────────┐
+│ Recent Sessions    (↻)  │
+├─────────────────────────┤
+│ [□] Select all          │
+├─────────────────────────┤
+│ [☑] Session 1      Active│
+│ [○] Session 2           │
+│ [○] Session 3           │
+│ [Delete (1)]            │
+├─────────────────────────┤
+│ ◀ Page 1 of 3 ▶         │
+└─────────────────────────┘
+```
+
+### Session List Behavior
+
+- **On Connect**: Automatically fetches sessions from the server
+- **On Entity Selection**: Filters sessions by the selected entity type
+- **On Session Click**: Loads the session's runs into the chat
+- **On New Chat**: Clears the current session and starts fresh
+- **On Page Refresh**: Clears session state, starts fresh
+
+### Session API Endpoints
+
+The session management uses the following API endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/sessions?type={agent\|team}` | GET | List sessions with pagination |
+| `/sessions/{session_id}/runs` | GET | Get all runs for a session |
+| `/sessions` | DELETE | Delete multiple sessions |
+
+### Session Data Structure
+
+```typescript
+interface Session {
+  session_id: string;
+  session_name: string;      // Derived from first user message
+  session_state: Record<string, unknown>;
+  created_at: string;        // ISO 8601 timestamp
+  updated_at: string;        // ISO 8601 timestamp
+  session_type: 'agent' | 'team';
+}
+```
+
+### Loading Historical Sessions
+
+When a session is loaded, the app:
+
+1. Fetches all runs for the session from `/sessions/{session_id}/runs`
+2. Separates top-level runs from member runs (for teams)
+3. Extracts tool calls from each run's `tools` array
+4. Transforms runs into Message objects with full content:
+   - User messages from `run_input`
+   - Assistant messages with `content`, `reasoning_content`, `tool_calls`
+   - Member runs for team sessions (nested agent responses)
+
 ## Implementation Status
 
 | Phase | Description | Status |
@@ -51,6 +129,7 @@ The app uses a **dynamic UI-based configuration system**. No environment variabl
 | Phase 3 | Chat Interface | Completed |
 | Phase 4 | Polish & UX | Completed |
 | Phase 5 | Team Support | Completed |
+| Phase 6 | Session Management | Completed |
 
 ---
 
@@ -669,6 +748,9 @@ my-copilot-app/
 │   ├── Sidebar.tsx           # Collapsible sidebar with server config
 │   ├── ServerConfig.tsx      # Server URL input and connection controls
 │   ├── EntityList.tsx        # List of available agents and teams
+│   ├── SessionList.tsx       # Session list with multi-select and pagination
+│   ├── SessionItem.tsx       # Individual session row with checkbox
+│   ├── DeleteConfirmModal.tsx # Confirmation dialog for session deletion
 │   └── tool-call/            # Tool call content rendering components
 │       ├── index.ts          # Exports for tool-call components
 │       ├── JsonValue.tsx     # Collapsible JSON renderer with syntax highlighting
@@ -681,6 +763,7 @@ my-copilot-app/
 │   │   ├── events.ts         # TypeScript interfaces for all 8 SSE events
 │   │   ├── message.ts        # Message and state types
 │   │   ├── config.ts         # Configuration types (AgentInfo, TeamInfo, etc.)
+│   │   ├── session.ts        # Session and run types for session management
 │   │   └── index.ts          # Type exports
 │   ├── utils/
 │   │   ├── sse-parser.ts     # SSE parsing utility (SSEParser class)
@@ -688,8 +771,9 @@ my-copilot-app/
 │   ├── context/
 │   │   └── ConfigContext.tsx # React context for global config state
 │   └── hooks/
-│       ├── useAgentRun.ts    # Agent/team communication hook
-│       └── useConfig.ts      # Server connection and entity selection hook
+│       ├── useAgentRun.ts    # Agent/team communication hook with session loading
+│       ├── useConfig.ts      # Server connection and entity selection hook
+│       └── useSessionManager.ts # Session list, selection, and deletion hook
 └── package.json              # Dependencies installed
 ```
 
@@ -831,7 +915,9 @@ const {
   currentRun,    // StreamMessage | null - current streaming run
   isStreaming,   // boolean - is a run in progress
   error,         // string | null - error message if any
+  sessionId,     // string | null - current session ID
   sendMessage,   // (content: string) => Promise<void>
+  loadSession,   // (sessionId: string) => Promise<void> - load historical session
   clearMessages, // () => void
 } = useAgentRun({
   serverUrl,      // string - URL of the Agno server
@@ -848,8 +934,43 @@ const {
 - Error handling with user feedback
 - **Team Support:** Tracks member agent runs when teams delegate tasks
 - **Nested Runs:** Handles `parent_run_id` for member agent events within team runs
+- **Session Loading:** Loads historical sessions with full tool call and member run data
 
 **Configuration:** Server URL and selected entity are passed as options, typically from `useConfigContext()`.
+
+### useSessionManager Hook
+
+Hook for managing session list and operations:
+
+```typescript
+const {
+  sessions,              // Session[] - list of sessions
+  page,                  // number - current page
+  totalPages,            // number - total pages
+  totalCount,            // number - total session count
+  isLoading,             // boolean - loading state
+  error,                 // string | null - error message
+  selectedSessionIds,    // Set<string> - selected session IDs
+  fetchSessions,         // (page?: number) => Promise<void>
+  deleteSelectedSessions,// () => Promise<boolean>
+  toggleSessionSelection,// (sessionId: string) => void
+  selectAllSessions,     // () => void
+  clearSelection,        // () => void
+  refreshSessions,       // () => Promise<void>
+} = useSessionManager({
+  serverUrl,             // string - URL of the Agno server
+  connectionStatus,      // ConnectionStatus - connection state
+  selectedEntityType,    // EntityType | null - filter by type
+});
+```
+
+**Features:**
+- Fetches sessions from both agent and team endpoints when no filter is set
+- Filters by entity type when an agent or team is selected
+- Multi-select support with Set-based selection tracking
+- Batch delete with confirmation
+- Pagination support
+- Auto-refresh on connection/entity change
 
 ### useConfig Hook
 

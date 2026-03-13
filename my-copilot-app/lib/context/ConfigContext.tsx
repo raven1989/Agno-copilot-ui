@@ -15,6 +15,7 @@ interface ConfigContextValue {
   agents: AgentInfo[];
   teams: TeamInfo[];
   selectedEntity: SelectedEntity | null;
+  currentSessionId: string | null;
 
   // Actions
   connect: () => Promise<void>;
@@ -22,6 +23,7 @@ interface ConfigContextValue {
   refresh: () => Promise<void>;
   refreshing: boolean;
   selectEntity: (type: 'agent' | 'team', id: string, name: string) => void;
+  setCurrentSessionId: (id: string | null) => void;
   error: string | null;
 
   // Callbacks

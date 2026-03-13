@@ -4,7 +4,7 @@ import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useAgentRun } from '../lib/hooks/useAgentRun';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { AlertCircle, Trash2, Bot, Users, Menu } from 'lucide-react';
+import { AlertCircle, Trash2, Bot, Users, Menu, Plus, MessageCircle } from 'lucide-react';
 import { useConfigContext } from '../lib/context/ConfigContext';
 
 interface ChatContainerProps {
@@ -12,8 +12,8 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
-  const { serverUrl, selectedEntity, toggleSidebar, setOnEntityChange } = useConfigContext();
-  const { messages, currentRun, isStreaming, error, sendMessage, clearMessages } = useAgentRun({
+  const { serverUrl, selectedEntity, toggleSidebar, setOnEntityChange, currentSessionId, setCurrentSessionId } = useConfigContext();
+  const { messages, currentRun, isStreaming, error, sessionId, sendMessage, loadSession, clearMessages } = useAgentRun({
     serverUrl,
     selectedEntity,
   });
@@ -25,9 +25,21 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
   // Track previous content length to detect actual content changes
   const prevContentLengthRef = useRef(0);
 
+  // Track the last loaded session ID to avoid reloading
+  const loadedSessionIdRef = useRef<string | null>(null);
+
+  // Load session when currentSessionId changes
+  useEffect(() => {
+    if (currentSessionId && currentSessionId !== loadedSessionIdRef.current) {
+      loadedSessionIdRef.current = currentSessionId;
+      loadSession(currentSessionId);
+    }
+  }, [currentSessionId, loadSession]);
+
   // Clear chat when entity changes
   const handleEntityChange = useCallback(() => {
     clearMessages();
+    loadedSessionIdRef.current = null;
   }, [clearMessages]);
 
   // Register the entity change callback
@@ -131,15 +143,36 @@ export function ChatContainer({ onToggleSidebar }: ChatContainerProps) {
             )
           ) : null}
           <h1 className="text-lg font-semibold text-gray-900">{entityLabel}</h1>
+          {sessionId && (
+            <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+              <MessageCircle className="w-3 h-3" />
+              Session
+            </span>
+          )}
         </div>
-        <button
-          onClick={clearMessages}
-          disabled={isStreaming}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Trash2 className="w-4 h-4" />
-          Clear
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              clearMessages();
+              setCurrentSessionId(null);
+              loadedSessionIdRef.current = null;
+            }}
+            disabled={isStreaming}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Start a new chat"
+          >
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+          <button
+            onClick={clearMessages}
+            disabled={isStreaming}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear
+          </button>
+        </div>
       </div>
 
       <div
