@@ -618,8 +618,14 @@ Note: Each event is followed by a blank line.
 4. **Member Agent Runs** (Teams only)
    - Display nested within team response
    - Show agent name with distinct styling
+   - Collapsible with default collapsed state
    - Include member's reasoning, content, and tool calls
-   - Indicate streaming vs completed state
+   - Status indicators: spinning (streaming) or checkmark (completed)
+
+5. **Main Agent/Team Runs**
+   - Status indicator next to entity name
+   - Spinning icon during streaming
+   - Checkmark when completed
 
 ### State Management
 
@@ -717,6 +723,7 @@ my-copilot-app/
 - Displays user and assistant messages
 - User messages: simple text display
 - Assistant messages: uses `MessageStream` for rich content
+- **Status indicators:** Spinning icon (streaming) or checkmark (completed) next to entity name
 
 #### ChatInput
 - Textarea with auto-resize
@@ -726,9 +733,9 @@ my-copilot-app/
 
 #### MessageStream
 - Orchestrates display order:
-  1. Member agent runs (for teams)
-  2. Reasoning content (if any)
-  3. Tool calls (if any)
+  1. Reasoning content (if any)
+  2. Tool calls (if any)
+  3. Member agent runs (for teams)
   4. Main content
 - Shows typing indicator during initial load
 - **Team indicator:** Shows "Team Response" label with Users icon
@@ -737,7 +744,9 @@ my-copilot-app/
 - Displays nested member agent responses
 - Shows agent name with Bot icon
 - Teal color scheme to distinguish from team content
-- Includes member's reasoning, tool calls, and content
+- **Collapsible:** Expand/fold button with default collapsed state
+- **Status indicators:** Spinning icon (streaming) or checkmark (completed)
+- Includes member's reasoning, tool calls, and content when expanded
 
 #### ReasoningBlock
 - Collapsible "Thinking" section

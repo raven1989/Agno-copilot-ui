@@ -2,7 +2,7 @@
 
 import { Message } from '../lib/types';
 import { MessageStream } from './MessageStream';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Loader2, CheckCircle } from 'lucide-react';
 
 interface ChatMessageProps {
   message: Message;
@@ -11,6 +11,7 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const isStreaming = message.id === 'streaming';
 
   return (
     <div
@@ -24,8 +25,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
         {isUser ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-gray-500 mb-1">
-          {isUser ? 'You' : message.streamMessage?.entity_name || 'Assistant'}
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-xs font-medium text-gray-500">
+            {isUser ? 'You' : message.streamMessage?.entity_name || 'Assistant'}
+          </span>
+          {!isUser && (
+            isStreaming ? (
+              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+            ) : (
+              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+            )
+          )}
         </div>
         <div className="text-gray-900">
           {isUser ? (
