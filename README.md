@@ -87,6 +87,8 @@ Sessions appear in the sidebar below the Entity List:
 
 ### Session API Endpoints
 
+For detailed API documentation, see [session_management_api.md](./session_management_api.md).
+
 The session management uses the following API endpoints:
 
 | Endpoint | Method | Description |
