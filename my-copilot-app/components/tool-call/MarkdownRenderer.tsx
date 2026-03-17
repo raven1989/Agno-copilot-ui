@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback, useId, useMemo } from 'react';
+import { useState, useCallback, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { getPreviewLines, formatSize } from '@/lib/utils/content-utils';
 
@@ -67,16 +67,16 @@ export function MarkdownRenderer({
 
   return (
     <div
-      className={`relative rounded-lg border border-gray-200 bg-white ${className}`}
+      className={`rounded-xl border border-slate-200 bg-white overflow-hidden ${className}`}
       role="region"
       aria-label="Markdown content"
     >
       {/* Header with label and copy button */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">Markdown</span>
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Markdown</span>
           {showSize && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-slate-400">
               {formatSize(content.length)} · {totalLines} lines
             </span>
           )}
@@ -84,14 +84,14 @@ export function MarkdownRenderer({
         <button
           onClick={handleCopy}
           onKeyDown={(e) => handleKeyDown(e, handleCopy)}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 tap-target"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           title="Copy markdown"
           aria-label={copied ? 'Copied to clipboard' : 'Copy markdown to clipboard'}
         >
           {copied ? (
             <>
-              <Check className="w-3.5 h-3.5 text-green-600" aria-hidden="true" />
-              <span className="text-green-600">Copied!</span>
+              <Check className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+              <span className="text-emerald-600">Copied!</span>
             </>
           ) : (
             <>
@@ -103,88 +103,145 @@ export function MarkdownRenderer({
       </div>
 
       {/* Markdown content */}
-      <div id={contentId} className="p-3 scrollbar-thin">
-        <div className="prose prose-sm max-w-none prose-pre:bg-gray-50 prose-pre:border prose-pre:border-gray-200 prose-code:text-pink-600 prose-headings:font-semibold prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-p:my-1.5 prose-headings:my-2">
+      <div id={contentId} className="p-4 max-h-[400px] overflow-y-auto scrollbar-thin">
+        <div className="text-[14px] leading-relaxed text-slate-700">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
+              // Paragraphs
+              p({ children }) {
+                return <p className="my-2 last:mb-0">{children}</p>;
+              },
+
+              // Headings
+              h1({ children }) {
+                return <h1 className="text-xl font-bold mt-4 mb-2 text-slate-800">{children}</h1>;
+              },
+              h2({ children }) {
+                return <h2 className="text-lg font-bold mt-3 mb-2 text-slate-800">{children}</h2>;
+              },
+              h3({ children }) {
+                return <h3 className="text-base font-semibold mt-3 mb-1.5 text-slate-800">{children}</h3>;
+              },
+
+              // Lists
+              ul({ children }) {
+                return <ul className="my-2 ml-4 space-y-1 list-disc marker:text-slate-400">{children}</ul>;
+              },
+              ol({ children }) {
+                return <ol className="my-2 ml-4 space-y-1 list-decimal marker:text-slate-400">{children}</ol>;
+              },
+              li({ children }) {
+                return <li className="pl-1">{children}</li>;
+              },
+
+              // Code block wrapper
+              pre({ children }) {
+                return <>{children}</>;
+              },
+
+              // Code - both inline and block
               code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-                const isInline = !match;
+                const content = String(children);
+                const isInline = !content.includes('\n');
 
                 if (isInline) {
                   return (
-                    <code className="px-1.5 py-0.5 rounded bg-gray-100 text-pink-600 text-sm font-mono" {...props}>
+                    <code
+                      className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[13px] font-mono font-medium"
+                      {...props}
+                    >
                       {children}
                     </code>
                   );
                 }
 
+                const match = /language-(\w+)/.exec(className || '');
+                const language = match ? match[1] : 'text';
+
                 return (
                   <SyntaxHighlighter
-                    style={oneLight}
-                    language={match[1]}
+                    style={vscDarkPlus}
+                    language={language}
                     PreTag="div"
-                    className="rounded-lg text-sm !my-2"
+                    className="rounded-lg !my-3 !bg-[#1e1e1e]"
+                    customStyle={{
+                      padding: '12px',
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                      borderRadius: '8px',
+                    }}
+                    codeTagProps={{
+                      style: {
+                        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+                      },
+                    }}
                   >
-                    {String(children).replace(/\n$/, '')}
+                    {content.replace(/\n$/, '')}
                   </SyntaxHighlighter>
                 );
               },
-              pre({ children }) {
-                return <>{children}</>;
+
+              // Blockquote
+              blockquote({ children }) {
+                return (
+                  <blockquote className="my-3 pl-3 border-l-4 border-slate-300 text-slate-500 italic">
+                    {children}
+                  </blockquote>
+                );
               },
+
+              // Links
+              a({ href, children }) {
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                  >
+                    {children}
+                  </a>
+                );
+              },
+
+              // Tables
               table({ children }) {
                 return (
-                  <div className="overflow-x-auto my-3">
-                    <table className="min-w-full border-collapse border border-gray-300">
+                  <div className="my-3 overflow-x-auto">
+                    <table className="min-w-full text-xs">
                       {children}
                     </table>
                   </div>
                 );
               },
+              thead({ children }) {
+                return <thead className="bg-slate-50">{children}</thead>;
+              },
+              tbody({ children }) {
+                return <tbody className="divide-y divide-slate-100">{children}</tbody>;
+              },
               th({ children }) {
                 return (
-                  <th className="border border-gray-300 px-3 py-1.5 bg-gray-50 font-semibold text-left text-sm">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">
                     {children}
                   </th>
                 );
               },
               td({ children }) {
                 return (
-                  <td className="border border-gray-300 px-3 py-1.5 text-sm">
+                  <td className="px-3 py-2 text-slate-600">
                     {children}
                   </td>
                 );
               },
-              h1({ children }) {
-                return <h1 className="text-lg font-bold mt-3 mb-2">{children}</h1>;
+
+              // Strong and emphasis
+              strong({ children }) {
+                return <strong className="font-semibold text-slate-800">{children}</strong>;
               },
-              h2({ children }) {
-                return <h2 className="text-base font-bold mt-2.5 mb-1.5">{children}</h2>;
-              },
-              h3({ children }) {
-                return <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>;
-              },
-              ul({ children }) {
-                return <ul className="list-disc list-outside ml-4 space-y-0.5">{children}</ul>;
-              },
-              ol({ children }) {
-                return <ol className="list-decimal list-outside ml-4 space-y-0.5">{children}</ol>;
-              },
-              blockquote({ children }) {
-                return (
-                  <blockquote className="border-l-4 border-gray-300 pl-3 py-1 my-2 bg-gray-50 text-gray-700 italic">
-                    {children}
-                  </blockquote>
-                );
-              },
-              a({ href, children }) {
-                return (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    {children}
-                  </a>
-                );
+              em({ children }) {
+                return <em className="italic">{children}</em>;
               },
             }}
           >
@@ -195,27 +252,27 @@ export function MarkdownRenderer({
 
       {/* Expand/Collapse controls */}
       {totalLines > maxLines && (
-        <div className="flex items-center justify-center py-2 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <div className="flex items-center justify-center py-2 bg-slate-50 border-t border-slate-200">
           {shouldTruncate ? (
             <button
               onClick={handleExpand}
               onKeyDown={(e) => handleKeyDown(e, handleExpand)}
-              className="flex items-center gap-1 px-3 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 tap-target"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-expanded="false"
               aria-controls={contentId}
             >
-              <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+              <ChevronDown className="w-4 h-4" aria-hidden="true" />
               <span>Show {remainingLines} more lines</span>
             </button>
           ) : (
             <button
               onClick={handleCollapse}
               onKeyDown={(e) => handleKeyDown(e, handleCollapse)}
-              className="flex items-center gap-1 px-3 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 tap-target"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-expanded="true"
               aria-controls={contentId}
             >
-              <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+              <ChevronUp className="w-4 h-4" aria-hidden="true" />
               <span>Show less</span>
             </button>
           )}

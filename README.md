@@ -855,9 +855,10 @@ my-copilot-app/
 
 #### ContentBlock
 - Markdown rendering with GitHub Flavored Markdown
-- Syntax highlighting for code blocks using `oneLight` theme
-- Styled tables with borders
-- Inline code with pink highlight
+- Syntax highlighting for code blocks using VS Code dark theme (`vscDarkPlus`)
+- Proper rendering of code blocks without language specification
+- Clean minimal table styling
+- Inline code with slate color scheme
 
 #### Sidebar
 - Collapsible sidebar with smooth animation
@@ -898,8 +899,9 @@ The `tool-call/` directory contains specialized renderers for tool output:
 
 ##### MarkdownRenderer
 - GitHub Flavored Markdown rendering
-- Code block syntax highlighting
-- Line truncation support
+- Code block syntax highlighting with VS Code dark theme
+- Proper handling of code blocks without language specification
+- Line truncation with expand/collapse support
 
 ##### TextRenderer
 - Plain text display with whitespace preservation
