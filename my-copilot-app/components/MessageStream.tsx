@@ -56,6 +56,13 @@ function MemberRunBlock({ memberRun }: { memberRun: MemberRun }) {
             </div>
           )}
           {hasContent && <ContentBlock content={memberRun.content} />}
+
+          {memberRun.status === 'completed' && (
+            <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-md w-fit border border-gray-100">
+              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+              <span>Run completed{memberRun.metrics?.duration ? ` in ${memberRun.metrics.duration.toFixed(1)}s` : ''}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -112,6 +119,13 @@ export function MessageStream({ message }: MessageStreamProps) {
             <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
           <span>Thinking...</span>
+        </div>
+      )}
+
+      {message.status === 'completed' && (
+        <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-md w-fit border border-gray-100">
+          <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+          <span>Run completed{message.metrics?.duration ? ` in ${message.metrics.duration.toFixed(1)}s` : ''}</span>
         </div>
       )}
     </div>

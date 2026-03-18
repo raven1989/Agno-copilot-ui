@@ -130,6 +130,10 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
           memberRun.content = completedEvent.content;
           memberRun.reasoning_content = completedEvent.reasoning_content;
           memberRun.status = 'completed';
+          memberRun.metrics = {
+            time_to_first_token: completedEvent.metrics?.time_to_first_token,
+            duration: completedEvent.metrics?.duration,
+          };
           updateMemberRunsInCurrentRun();
         }
         break;
@@ -609,6 +613,12 @@ export function useAgentRun(options: UseAgentRunOptions): UseAgentRunReturn {
               tool_calls: memberToolCalls,
               status: 'completed',
               parent_run_id: run.run_id,
+              metrics: {
+                time_to_first_token: childRun.metrics?.time_to_first_token,
+                duration: childRun.metrics?.duration,
+                model: childRun.metrics?.details?.model?.[0]?.id,
+                provider: childRun.metrics?.details?.model?.[0]?.provider,
+              },
             });
           });
         }

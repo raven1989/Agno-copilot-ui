@@ -16,6 +16,12 @@ export interface MemberRun {
   tool_calls: ToolCallState[];
   status: 'streaming' | 'completed' | 'error';
   parent_run_id: string;
+  metrics?: {
+    time_to_first_token?: number;
+    duration?: number;
+    model?: string;
+    provider?: string;
+  };
 }
 
 export interface StreamMessage {

@@ -702,11 +702,13 @@ Note: Each event is followed by a blank line.
    - Collapsible with default collapsed state
    - Include member's reasoning, content, and tool calls
    - Status indicators: spinning (streaming) or checkmark (completed)
+   - **Completion Badge:** Minimal badge at the bottom of the expanded content showing run completion and duration.
 
 5. **Main Agent/Team Runs**
    - Status indicator next to entity name
    - Spinning icon during streaming
    - Checkmark when completed
+   - **Completion Badge:** Minimal badge at the end of the content showing run completion and duration.
 
 ### State Management
 
