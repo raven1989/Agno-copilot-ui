@@ -28,7 +28,7 @@ export function ReasoningBlock({ content, defaultExpanded = false }: ReasoningBl
         )}
       </button>
       {expanded && (
-        <div className="px-4 py-3 text-sm text-gray-500 border-t border-gray-200 whitespace-pre-wrap animate-fadeIn">
+        <div className="px-4 py-3 text-sm text-gray-500 border-t border-gray-200 whitespace-pre-wrap break-all animate-fadeIn">
           {content}
         </div>
       )}

@@ -77,7 +77,7 @@ export function MessageStream({ message }: MessageStreamProps) {
   const isTeam = message.entity_type === 'team';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 overflow-hidden">
       {isTeam && hasMemberRuns && (
         <div className="flex items-center gap-1.5 text-xs text-purple-600 font-medium mb-1">
           <Users className="w-3.5 h-3.5" />

@@ -84,7 +84,7 @@ function MainContent() {
         onClearSelection={clearSelection}
         onRefreshSessions={refreshSessions}
       />
-      <div className="flex-1 h-full">
+      <div className="flex-1 h-full min-w-0">
         <ChatContainer onToggleSidebar={toggleSidebar} />
       </div>
     </main>

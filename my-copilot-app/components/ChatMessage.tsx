@@ -39,11 +39,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </div>
         <div className="text-gray-900">
           {isUser ? (
-            <div className="whitespace-pre-wrap">{message.content}</div>
+            <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : message.streamMessage ? (
             <MessageStream message={message.streamMessage} />
           ) : (
-            <div className="whitespace-pre-wrap">{message.content}</div>
+            <div className="whitespace-pre-wrap break-words">{message.content}</div>
           )}
         </div>
       </div>
